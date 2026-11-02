@@ -158,3 +158,26 @@ def test_lookup_loans_by_params(client):
     loans = response.get_json()
     assert len(loans) >= 1
     assert loans[0]["member_id"] == member_id
+
+def test_place_hold_success(client):
+    """Test POST /books/<id>/hold places a hold on a book (R15)."""
+    b_res = client.post("/books", json={"title": "Refactoring", "author": "Martin Fowler", "isbn": "999", "total_copies": 1})
+    m_res = client.post("/members", json={"name": "Alice", "email": "alice@test.com"})
+    book_id = b_res.get_json()["id"]
+    member_id = m_res.get_json()["id"]
+
+    hold_res = client.post(f"/books/{book_id}/hold", json={"member_id": member_id})
+    assert hold_res.status_code == 201
+    assert member_id in hold_res.get_json()["holds"]
+
+
+def test_place_hold_duplicate_fails(client):
+    """Test placing a duplicate hold returns HTTP 400 (R15)."""
+    b_res = client.post("/books", json={"title": "Clean Code", "author": "Bob", "isbn": "888", "total_copies": 1})
+    m_res = client.post("/members", json={"name": "Bob", "email": "bob@test.com"})
+    book_id = b_res.get_json()["id"]
+    member_id = m_res.get_json()["id"]
+
+    client.post(f"/books/{book_id}/hold", json={"member_id": member_id})
+    dup_res = client.post(f"/books/{book_id}/hold", json={"member_id": member_id})
+    assert dup_res.status_code == 400

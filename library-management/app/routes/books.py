@@ -59,3 +59,31 @@ def delete_book(book_id):
     if book is None:
         return jsonify({"error": "Book not found"}), 404
     return "", 204
+
+@books_bp.route("/<int:book_id>/hold", methods=["POST"])
+def place_hold(book_id):
+    """Place a hold on a book (R15)."""
+    book = store.books.get(book_id)
+    if book is None:
+        return jsonify({"error": "Book not found"}), 404
+
+    data = request.get_json() or {}
+    member_id = data.get("member_id")
+    if not member_id:
+        return jsonify({"error": "member_id is required"}), 400
+
+    member = store.members.get(member_id)
+    if member is None:
+        return jsonify({"error": "Member not found"}), 400
+
+    if not hasattr(book, "holds") or book.holds is None:
+        book.holds = []
+
+    if member_id in book.holds:
+        return jsonify({"error": "Member already has a hold on this book"}), 400
+
+    book.holds.append(member_id)
+
+    res_data = book.to_dict()
+    res_data["holds"] = book.holds
+    return jsonify(res_data), 201
