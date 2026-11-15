@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 
 from app import store
 from app.models.loan import Loan, LOAN_PERIOD_DAYS
+from notification_service import send_notification
 
 FINE_PER_DAY = 0.25  # dollars charged per day overdue
 
@@ -54,7 +55,22 @@ def return_book(loan_id):
     book = store.books.get(loan.book_id)
     book.available_copies += 1
 
-    return jsonify(loan.to_dict())
+    notified = False
+    holds = getattr(book, "holds", None)
+    if holds:
+        next_member = store.members.get(holds[0])
+        if next_member is not None:
+            notified = send_notification(
+                next_member.email,
+                "Hold Available",
+                f"Hello {next_member.name}, your hold for '{book.title}' is now available for pickup.",
+            )
+            if notified:
+                holds.pop(0)
+
+    response_data = loan.to_dict()
+    response_data["notified"] = notified
+    return jsonify(response_data)
 
 
 @loans_bp.route("/<int:loan_id>/renew", methods=["PUT"])
